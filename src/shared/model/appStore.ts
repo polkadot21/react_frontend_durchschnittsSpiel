@@ -16,11 +16,15 @@ type AppStoreState = {
   isContractOwner: boolean;
   currentBlock?: number;
   startGameBlock?: number;
+  isSubmissionPeriod: boolean;
   endSubmissionPeriodBlock?: number;
+  isRevealingPeriod: boolean;
   endRevealingPeriodBlock?: number;
   submissionPeriod: number;
   revealingPeriod: number;
   countdownTimer: number;
+  finishGamePlayers: string[];
+  minNumPlayers: number;
   isGameStarted: boolean;
   isGuessesSubmitted: boolean;
   isSaltSubmitted: boolean;
@@ -28,13 +32,10 @@ type AppStoreState = {
 };
 
 type AppStoreActions = {
-  isPhase: () => boolean;
-  isSubmissionPhase: () => boolean;
-  isRevealPhase: () => boolean;
-  isCalculateWinningPhase: () => boolean;
   init: () => Promise<void>;
   initBlocksSubscription: () => Promise<void>;
   initGamePeriods: () => Promise<void>;
+  setStartGameBlocks: (startGameBlock: number | bigint) => void;
   initGameSubmissionSubscription: () => Promise<void>;
   connect: () => Promise<void>;
   disconnect: () => void;
@@ -56,33 +57,19 @@ export const useAppStore = create<AppStore>()((set, get) => ({
   isContractOwner: false,
   currentBlock: undefined,
   startGameBlock: undefined,
+  isSubmissionPeriod: false,
   endSubmissionPeriodBlock: undefined,
+  isRevealingPeriod: false,
   endRevealingPeriodBlock: undefined,
   submissionPeriod: 0,
   revealingPeriod: 0,
   countdownTimer: 0,
+  finishGamePlayers: [],
+  minNumPlayers: 0,
   isGameStarted: false,
   isGuessesSubmitted: false,
   isSaltSubmitted: false,
   isWinningGuessCalculated: false,
-  isPhase: () => get().isSubmissionPhase() || get().isRevealPhase(),
-  isSubmissionPhase: () => {
-    const currentBlock = get().currentBlock;
-    const endSubmissionPeriodBlock = get().endSubmissionPeriodBlock;
-
-    if (!endSubmissionPeriodBlock || !currentBlock) return false;
-
-    return endSubmissionPeriodBlock - currentBlock > 0;
-  },
-  isRevealPhase: () => {
-    const currentBlock = get().currentBlock;
-    const endRevealingPeriodBlock = get().endRevealingPeriodBlock;
-
-    if (!endRevealingPeriodBlock || !currentBlock) return false;
-
-    return endRevealingPeriodBlock - currentBlock > 0;
-  },
-  isCalculateWinningPhase: () => !get().isPhase(),
   period: null,
   init: async () => {
     if (window.ethereum) {
@@ -98,17 +85,21 @@ export const useAppStore = create<AppStore>()((set, get) => ({
 
       // Get the latest block number
       const latestBlockNumber = await web3.eth.getBlockNumber();
-      const submissionPeriod = await get()
-        .contractInstance?.methods.submissionPeriod()
+      const submissionPeriod = await contractInstance?.methods
+        .submissionPeriod()
         .call();
-      const revealPeriod = await get()
-        .contractInstance?.methods.revealPeriod()
+      const revealPeriod = await contractInstance?.methods
+        .revealPeriod()
         .call();
+      const minNumPlayers = await contractInstance?.methods[
+        "minNumPlayers"
+      ]().call();
 
       set({
         currentBlock: Number(latestBlockNumber),
         submissionPeriod: Number(submissionPeriod),
         revealingPeriod: Number(revealPeriod),
+        minNumPlayers: Number(minNumPlayers),
       });
 
       if (localStorage.getItem("wallet")) {
@@ -131,6 +122,7 @@ export const useAppStore = create<AppStore>()((set, get) => ({
     }
   },
   initBlocksSubscription: async () => {
+    const contractInstance = get().contractInstance;
     const web3 = get().web3;
     try {
       const subscription = await web3?.eth.subscribe(
@@ -142,8 +134,60 @@ export const useAppStore = create<AppStore>()((set, get) => ({
         }
       );
 
-      subscription?.on("data", function (transaction) {
-        set({ currentBlock: Number(transaction.number) });
+      subscription?.on("data", async (transaction) => {
+        const currentBlock = Number(transaction.number);
+        const endSubmissionPeriodBlock = get().endSubmissionPeriodBlock;
+        const endRevealingPeriodBlock = get().endRevealingPeriodBlock;
+        const isGuessesSubmitted = get().isGuessesSubmitted;
+        const isWinningGuessCalculated = get().isWinningGuessCalculated;
+        set({ currentBlock });
+        if (currentBlock === endSubmissionPeriodBlock)
+          set({ isSubmissionPeriod: false });
+        if (currentBlock === endRevealingPeriodBlock)
+          set({
+            isRevealingPeriod: false,
+            isGameStarted:
+              isGuessesSubmitted || isWinningGuessCalculated || false,
+          });
+        try {
+          const pastStartedEvents = await contractInstance?.getPastEvents(
+            "allEvents",
+            {
+              fromBlock: currentBlock - 1,
+              toBlock: currentBlock,
+            }
+          );
+          if (pastStartedEvents?.length) {
+            pastStartedEvents.forEach((eventLog: any) => {
+              if (eventLog?.event) {
+                switch (eventLog.event) {
+                  case "GameStarted": {
+                    get().setStartGameBlocks(eventLog.blockNumber);
+                    set({ isGameStarted: true });
+                    break;
+                  }
+                  case "AllGuessesSubmitted": {
+                    set({
+                      isGuessesSubmitted: true,
+                    });
+                    break;
+                  }
+                  case "WinningGuessCalculated": {
+                    set({
+                      isGuessesSubmitted: false,
+                      isWinningGuessCalculated: true,
+                    });
+                    break;
+                  }
+                  default:
+                    break;
+                }
+              }
+            });
+          }
+        } catch (error) {
+          console.log("Blocks subscription error", error);
+        }
       });
       subscription?.on("error", (error: any) => {
         throw error;
@@ -174,35 +218,40 @@ export const useAppStore = create<AppStore>()((set, get) => ({
         if (pastStartedEvents.length) {
           const lastEvent: any =
             pastStartedEvents[pastStartedEvents.length - 1];
-          const startGameBlock = Number(lastEvent?.returnValues.timestamp);
-          const endSubmissionPeriodBlock = startGameBlock + submissionPeriod;
-          const endRevealingPeriodBlock =
-            startGameBlock + submissionPeriod + revealingPeriod;
-
-          set({
-            startGameBlock,
-            endSubmissionPeriodBlock,
-            endRevealingPeriodBlock,
-          });
+          get().setStartGameBlocks(lastEvent?.returnValues.timestamp);
         }
       } catch (error: any) {
         toast.error(error?.message);
       }
     }
   },
+  setStartGameBlocks: (startBlock) => {
+    const startGameBlock = Number(startBlock);
+    const submissionPeriod = get().submissionPeriod;
+    const revealingPeriod = get().revealingPeriod;
+    const endSubmissionPeriodBlock = startGameBlock + submissionPeriod;
+    const endRevealingPeriodBlock =
+      startGameBlock + submissionPeriod + revealingPeriod;
+
+    set({
+      startGameBlock,
+      endSubmissionPeriodBlock,
+      endRevealingPeriodBlock,
+    });
+  },
   initGameSubmissionSubscription: async () => {
     const contract = get().contractInstance;
-    const guessSubmittedSubscription = await contract?.events.GuessSubmitted();
+    const allGuessesSubmittedSubscription =
+      await contract?.events.AllGuessesSubmitted();
 
-    guessSubmittedSubscription?.on("data", async (eventLog) => {
-      console.log("eventLog", eventLog);
-      if (eventLog.returnValues.player) toast.success("The guess is submitted");
-
-      set({ isGuessesSubmitted: true });
-
-      await guessSubmittedSubscription.unsubscribe();
+    allGuessesSubmittedSubscription?.on("data", async (eventLog) => {
+      if (eventLog.returnValues.player) {
+        toast.success("The guess is submitted");
+        set({ isGuessesSubmitted: true });
+        await allGuessesSubmittedSubscription.unsubscribe();
+      }
     });
-    guessSubmittedSubscription?.on("error", (error) => {
+    allGuessesSubmittedSubscription?.on("error", (error) => {
       console.log("Error when subscribing: ", error);
       throw error;
     });
@@ -338,21 +387,6 @@ export const useAppStore = create<AppStore>()((set, get) => ({
           pending: "Waiting for the guess enter",
           success: "The guess is saved",
         });
-
-        // const guessSubmittedSubscription =
-        //   await contract?.events.GuessSubmitted();
-        //
-        // guessSubmittedSubscription?.on("data", async (eventLog) => {
-        //   toast.success("The guess is submitted");
-        //
-        //   set({ isGuessesSubmitted: true });
-        //
-        //   await guessSubmittedSubscription.unsubscribe();
-        // });
-        // guessSubmittedSubscription.on("error", (error) => {
-        //   throw error;
-        //   console.log("Error when subscribing: ", error);
-        // });
       } catch (error: any) {
         toast.error(error?.message);
       }
@@ -378,38 +412,10 @@ export const useAppStore = create<AppStore>()((set, get) => ({
             toast.success("Transaction sent");
           })
           .catch((error) => toast.error(error?.message));
-
         await toast.promise(revealSaltAndGuess, {
           pending: "Waiting for the guess ans salt revealed",
           success: "Guess and salt are successfully revealed",
         });
-
-        // const allGuessesSubmittedSubscription =
-        //   await contract?.events.AllGuessesSubmitted();
-        // const allSaltSubmittedSubscription =
-        //   await contract?.events.AllGuessesSubmitted();
-        //
-        // allGuessesSubmittedSubscription?.on("data", async (eventLog) => {
-        //   toast.success("All guesses are submitted");
-        //
-        //   set({ isGuessesSubmitted: true });
-        //
-        //   await allGuessesSubmittedSubscription.unsubscribe();
-        // });
-        // allGuessesSubmittedSubscription.on("error", (error) => {
-        //   throw error;
-        // });
-        //
-        // allSaltSubmittedSubscription?.on("data", async (eventLog) => {
-        //   toast.success("All salt is submitted");
-        //
-        //   set({ isSaltSubmitted: true });
-        //
-        //   await allSaltSubmittedSubscription.unsubscribe();
-        // });
-        // allSaltSubmittedSubscription.on("error", (error) => {
-        //   throw error;
-        // });
       } catch (error: any) {
         toast.error(error?.message);
       }
@@ -419,18 +425,18 @@ export const useAppStore = create<AppStore>()((set, get) => ({
     const contract = get().contractInstance;
     if (contract) {
       try {
-        await contract?.methods.calculateWinningGuess().send({
+        const calculated = contract?.methods.calculateWinningGuess().send({
           from: get().wallet?.accounts[0],
           gas: "5000000",
+        });
+        await toast.promise(calculated, {
+          pending: "Waiting for calculating winnings",
         });
         const winningGuessCalculatedSubscription =
           await contract?.events.WinningGuessCalculated();
         winningGuessCalculatedSubscription?.on("data", async (eventLog) => {
           toast.success("The winning guess is calculated");
-          console.log("The winning guess is calculated");
-
-          set({ isWinningGuessCalculated: true });
-
+          set({ isGuessesSubmitted: false, isWinningGuessCalculated: true });
           await winningGuessCalculatedSubscription.unsubscribe();
         });
         winningGuessCalculatedSubscription.on("error", (error) => {
@@ -446,9 +452,18 @@ export const useAppStore = create<AppStore>()((set, get) => ({
     const contract = get().contractInstance;
     if (contract) {
       try {
-        await contract?.methods
+        const selectWinner = contract?.methods
           .selectWinner()
           .send({ from: get().wallet?.accounts[0] });
+
+        selectWinner.then((data) => {
+          toast.success("The winner is selected");
+          set({ isWinningGuessCalculated: false, isGameStarted: false });
+        });
+
+        await toast.promise(selectWinner, {
+          pending: "Waiting for a winner selecting",
+        });
       } catch (error: any) {
         toast.error(error.message);
       }

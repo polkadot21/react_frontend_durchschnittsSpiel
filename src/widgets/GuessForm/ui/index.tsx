@@ -36,19 +36,20 @@ export const GuessForm: React.FC<{ isSubmittingPhase: boolean }> = ({
     <form
       onSubmit={async (event) => {
         event.preventDefault();
+        const formValues = { ...formState };
+        setFormState(() => ({
+          guess: 0,
+          salt: 0,
+        }));
         if (formState.guess < 0 || formState.guess > 1000) {
           toast.error("Guess value must be a digit between 0 and 1000");
           return;
         }
         if (!isSubmittingPhase) {
-          await revealSaltAndGuess(formState);
+          await revealSaltAndGuess(formValues);
         } else {
-          await enterGuess(formState);
+          await enterGuess(formValues);
         }
-        setFormState({
-          guess: 0,
-          salt: 0,
-        });
       }}
     >
       <div className="flex">
@@ -57,6 +58,7 @@ export const GuessForm: React.FC<{ isSubmittingPhase: boolean }> = ({
           id="guess"
           type={!isSubmittingPhase ? "number" : "password"}
           placeholder="Your guess"
+          value={formState.guess}
           onChange={handleChangeValue}
         />
         <Button
@@ -65,7 +67,7 @@ export const GuessForm: React.FC<{ isSubmittingPhase: boolean }> = ({
           onClick={() => handleVisibilityChange("guess")}
         >
           <i
-            className={`fas ${visibilityState ? "fa-eye" : "fa-eye-slash"}`}
+            className={`fas ${isSubmittingPhase ? "fa-eye" : "fa-eye-slash"}`}
             id="toggleGuessVisibility"
           ></i>
         </Button>
@@ -76,6 +78,7 @@ export const GuessForm: React.FC<{ isSubmittingPhase: boolean }> = ({
           id="salt"
           type={!isSubmittingPhase ? "number" : "password"}
           placeholder="Your salt"
+          value={formState.salt}
           onChange={handleChangeValue}
         />
         <Button
@@ -84,7 +87,7 @@ export const GuessForm: React.FC<{ isSubmittingPhase: boolean }> = ({
           onClick={() => handleVisibilityChange("salt")}
         >
           <i
-            className={`fas ${visibilityState ? "fa-eye" : "fa-eye-slash"}`}
+            className={`fas ${isSubmittingPhase ? "fa-eye" : "fa-eye-slash"}`}
             id="toggleGuessVisibility"
           ></i>
         </Button>

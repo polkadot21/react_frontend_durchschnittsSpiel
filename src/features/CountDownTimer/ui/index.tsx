@@ -14,6 +14,10 @@ export const CountdownTimer = ({ blocks }: { blocks: number }) => {
     }, 1000);
 
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    setCountDown(blocks * 12 * 1000);
   }, [blocks]);
 
   const formatTime = (time: number) => {
@@ -22,7 +26,7 @@ export const CountdownTimer = ({ blocks }: { blocks: number }) => {
     return `${minutes}м ${seconds}с`;
   };
 
-  return countDown ? (
+  return countDown > 0 ? (
     <div>
       <h2>Countdown timer</h2>
       <div>{formatTime(countDown)}</div>
