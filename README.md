@@ -1,6 +1,7 @@
 # Guess the number game APP
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+## Disclaimer
+The application may display an inaccurate remaining number of blocks until the end of the period.
 
 ## Available Scripts
 

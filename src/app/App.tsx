@@ -120,7 +120,6 @@ function App() {
         )}
 
         {wallet?.accounts.length &&
-          !isContractOwner &&
           (isSubmittingPhaseActive || isRevealPhaseActive) && (
             <GuessForm isSubmittingPhase={isSubmittingPhaseActive} />
           )}
