@@ -1,7 +1,8 @@
 import { create } from "zustand";
-import Web3, { Contract } from "web3";
+import Web3, { Contract, NonPayableCallOptions } from "web3";
 // import ABI from "../data/GuessTheNumberGame.json";
 import { toast } from "react-toastify";
+import { log } from "util";
 
 const ABI = [{"anonymous":false,"inputs":[],"name":"AllGuessesSubmitted","type":"event"},{"anonymous":false,"inputs":[],"name":"AllSaltsSubmitted","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"uint256","name":"timestamp","type":"uint256"}],"name":"GameStarted","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"address","name":"player","type":"address"}],"name":"GuessSubmitted","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"previousOwner","type":"address"},{"indexed":true,"internalType":"address","name":"newOwner","type":"address"}],"name":"OwnershipTransferred","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"address","name":"player","type":"address"}],"name":"PlayerDropsOut","type":"event"},{"anonymous":false,"inputs":[],"name":"VariableReset","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"uint256","name":"winningGuess","type":"uint256"}],"name":"WinningGuessCalculated","type":"event"},{"inputs":[{"internalType":"uint256","name":"","type":"uint256"}],"name":"activeAddresses","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"","type":"uint256"}],"name":"activeRevealedGuesses","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"calculateWinningGuess","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"","type":"uint256"}],"name":"droppedOutPlayerAddresses","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"bytes32","name":"_hashedGuess","type":"bytes32"}],"name":"enterGuess","outputs":[],"stateMutability":"payable","type":"function"},{"inputs":[{"internalType":"address","name":"","type":"address"}],"name":"guessesOfActivePlayers","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"init","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"isWinningGuessCalculated","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"maxGuess","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"minGuess","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"minNumPlayers","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"numPlayers","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"owner","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"ownersPercentFee","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"participationFee","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"","type":"uint256"}],"name":"playerAddresses","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"","type":"address"}],"name":"playerGuesses","outputs":[{"internalType":"bytes32","name":"","type":"bytes32"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"","type":"address"}],"name":"playerRevealedGuesses","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"","type":"address"}],"name":"playerSalts","outputs":[{"internalType":"bytes32","name":"","type":"bytes32"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"renounceOwnership","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"resetVariables","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"revealPeriod","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"_guess","type":"uint256"},{"internalType":"uint256","name":"_salt","type":"uint256"}],"name":"revealSaltAndGuess","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"","type":"uint256"}],"name":"revealedAddresses","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"selectWinner","outputs":[],"stateMutability":"payable","type":"function"},{"inputs":[],"name":"startBlock","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"startGame","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"submissionPeriod","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"newOwner","type":"address"}],"name":"transferOwnership","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"","type":"uint256"}],"name":"winningAddresses","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"winningGuess","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"stateMutability":"payable","type":"receive"}]
 
@@ -31,6 +32,7 @@ type AppStoreState = {
   isGuessesSubmitted: boolean;
   isSaltSubmitted: boolean;
   isWinningGuessCalculated: boolean;
+  winners: string[];
 };
 
 type AppStoreActions = {
@@ -49,6 +51,7 @@ type AppStoreActions = {
   }) => Promise<void>;
   calculateWinningGuess: () => Promise<void>;
   selectWinner: () => Promise<void>;
+  getWinners: () => Promise<void>;
 };
 type AppStore = AppStoreState & AppStoreActions;
 
@@ -73,6 +76,7 @@ export const useAppStore = create<AppStore>()((set, get) => ({
   isSaltSubmitted: false,
   isWinningGuessCalculated: false,
   period: null,
+  winners: [],
   init: async () => {
     if (window.ethereum) {
       // create WEB3 instance
@@ -117,6 +121,8 @@ export const useAppStore = create<AppStore>()((set, get) => ({
           isContractOwner: wallet.accounts[0] === contractOwner,
         }));
       }
+
+      await get().getWinners(); // TODO remove, added for test
 
       await get().initGamePeriods();
       await get().initBlocksSubscription();
@@ -440,6 +446,7 @@ export const useAppStore = create<AppStore>()((set, get) => ({
           toast.success("The winning guess is calculated");
           set({ isGuessesSubmitted: false, isWinningGuessCalculated: true });
           await winningGuessCalculatedSubscription.unsubscribe();
+          await get().getWinners();
         });
         winningGuessCalculatedSubscription.on("error", (error) => {
           throw error;
@@ -468,6 +475,23 @@ export const useAppStore = create<AppStore>()((set, get) => ({
         });
       } catch (error: any) {
         toast.error(error.message);
+      }
+    }
+  },
+  // TODO update code to receive winners
+  getWinners: async () => {
+    const web3 = get().web3;
+    const contract = get().contractInstance;
+    if (contract) {
+      try {
+        const winner = await contract.methods
+          // @ts-ignore
+          .winningAddresses(web3?.utils.toBigInt(1))
+          .call();
+
+        console.log("WINNER", winner);
+      } catch (error) {
+        console.log("ERROR", error);
       }
     }
   },

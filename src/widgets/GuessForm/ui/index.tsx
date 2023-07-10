@@ -19,8 +19,8 @@ export const GuessForm: React.FC<{ isSubmittingPhase: boolean }> = ({
   const [visibilityState, setVisibilityState] = useState<{
     [T in TFields]: boolean;
   }>({
-    guess: false,
-    salt: false,
+    guess: !isSubmittingPhase,
+    salt: !isSubmittingPhase,
   });
 
   const handleChangeValue: ChangeEventHandler<HTMLInputElement> = (e) => {
@@ -56,9 +56,9 @@ export const GuessForm: React.FC<{ isSubmittingPhase: boolean }> = ({
         <Input
           label="Your guess"
           id="guess"
-          type={!isSubmittingPhase ? "number" : "password"}
+          type={visibilityState.guess ? "number" : "password"}
           placeholder="Your guess"
-          value={formState.guess}
+          value={formState.guess || ""}
           onChange={handleChangeValue}
         />
         <Button
@@ -67,7 +67,9 @@ export const GuessForm: React.FC<{ isSubmittingPhase: boolean }> = ({
           onClick={() => handleVisibilityChange("guess")}
         >
           <i
-            className={`fas ${isSubmittingPhase ? "fa-eye" : "fa-eye-slash"}`}
+            className={`fas ${
+              visibilityState.guess ? "fa-eye" : "fa-eye-slash"
+            }`}
             id="toggleGuessVisibility"
           ></i>
         </Button>
@@ -76,9 +78,9 @@ export const GuessForm: React.FC<{ isSubmittingPhase: boolean }> = ({
         <Input
           label="Your salt"
           id="salt"
-          type={!isSubmittingPhase ? "number" : "password"}
+          type={visibilityState.salt ? "number" : "password"}
           placeholder="Your salt"
-          value={formState.salt}
+          value={formState.salt || ""}
           onChange={handleChangeValue}
         />
         <Button
@@ -87,7 +89,9 @@ export const GuessForm: React.FC<{ isSubmittingPhase: boolean }> = ({
           onClick={() => handleVisibilityChange("salt")}
         >
           <i
-            className={`fas ${isSubmittingPhase ? "fa-eye" : "fa-eye-slash"}`}
+            className={`fas ${
+              visibilityState.salt ? "fa-eye" : "fa-eye-slash"
+            }`}
             id="toggleGuessVisibility"
           ></i>
         </Button>

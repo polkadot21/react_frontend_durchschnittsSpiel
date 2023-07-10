@@ -96,6 +96,13 @@ function App() {
           </p>
         </div>
 
+        <div>
+          <h3>Winners</h3>
+          <ul>
+            <li>Winner 1</li>
+          </ul>
+        </div>
+
         {isContractOwner &&
           !isSubmittingPhaseActive &&
           !isRevealPhaseActive &&
