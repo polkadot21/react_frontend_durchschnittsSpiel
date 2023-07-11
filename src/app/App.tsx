@@ -25,6 +25,9 @@ function App() {
     endRevealingPeriodBlock,
     revealingPeriod,
     isGameStarted,
+    winners,
+    checkWinnersActive,
+    getWinners,
   ] = useAppStore((state) => [
     state.init,
     state.wallet,
@@ -36,6 +39,9 @@ function App() {
     state.endRevealingPeriodBlock,
     state.revealingPeriod,
     state.isGameStarted,
+    state.winners,
+    state.checkWinnersActive,
+    state.getWinners,
   ]);
 
   const isSubmittingPhaseActive = useMemo<boolean>(() => {
@@ -96,23 +102,37 @@ function App() {
           </p>
         </div>
 
-        <div>
-          <h3>Winners</h3>
-          <ul>
-            <li>Winner 1</li>
-          </ul>
-        </div>
+        {winners.size ? (
+          <div>
+            <h3 className="text-bold">Winners</h3>
+            <ul>
+              {/*{for (let winner of winners.values()) return <li key={winner}>{winner}</li>}*/}
+              {Array.from(winners).map(([key, winner]) => (
+                <li key={key}>{winner}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
 
         {isContractOwner &&
-          !isSubmittingPhaseActive &&
-          !isRevealPhaseActive &&
-          !isGameStarted && <StartGameButton />}
+        !isSubmittingPhaseActive &&
+        !isRevealPhaseActive &&
+        !isGameStarted ? (
+          <>
+            {checkWinnersActive ? (
+              <button type="button" onClick={getWinners}>
+                Check winners
+              </button>
+            ) : null}
+            <StartGameButton />
+          </>
+        ) : null}
 
         {isContractOwner &&
           !isSubmittingPhaseActive &&
           !isRevealPhaseActive &&
           isGuessesSubmitted && <CalculateWinningButton />}
-        {/*{isContractOwner && <CalculateWinningButton />}*/}
+
         {isContractOwner && isWinningGuessCalculated && <SelectWinnerButton />}
         {/*{isContractOwner && isWinningGuessCalculated && <SelectWinnerButton />}*/}
         {isSubmittingPhaseActive && (
